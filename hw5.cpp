@@ -5,9 +5,6 @@
 #include <stdio.h>
 #include <fstream>
 
-#pragma GCC target("avx2")
-#pragma GCC optimize("O3")
-
 #define uc unsigned char
 using namespace std;
 using namespace std::chrono;
@@ -26,20 +23,18 @@ uc new_color[256];
 
 struct Timer
 {
-    string msg;
     system_clock::time_point start = high_resolution_clock::now();
-
-    Timer(const string message)
+    int threads;
+    Timer(const int thrds)
     {
-        msg = message;
+        threads = thrds;
     }
 
     int end()
     {
         system_clock::time_point end = high_resolution_clock::now();
         milliseconds duration = duration_cast<milliseconds>(end - start);
-        cout << msg << "; Time: " << duration.count() << " ms"
-             << "\n";
+        cout << "Time (" << threads << " thread(s)): " << duration.count() << " ms\n";
         return duration.count();
     }
 };
@@ -54,7 +49,10 @@ void readFile(const string &filename)
 {
     streampos Size;
     ifstream file(filename, ios::binary);
-
+    if (file.fail()) {
+        cout << "file: " << filename << " not found" << "\n";
+        exit(0);
+    }
     file.seekg(0, ios::end);
     Size = file.tellg();
     file.seekg(0, ios::beg);
@@ -72,9 +70,11 @@ uc shift_color(const uc value)
     return max(0, min(new_value, 255));
 }
 
-void precalc() {
-    #pragma omp parallel for
-    for(int j = 0; j < 256; j++) {
+void precalc()
+{
+#pragma omp parallel for
+    for (int j = 0; j < 256; j++)
+    {
         new_color[j] = shift_color(j);
     }
 }
@@ -103,16 +103,18 @@ void init(const string &fileName)
     mx = input('\n');
 }
 
-void find_min(const long long value) {
-    int l = 0; 
-    int r = 256;
-    while (l + 1 < r) {
-        int m = (l + r) / 2;
-        if (count[m] - 1 >= value) 
+void find_min(const long long value)
+{
+    uc l = 0;
+    uc r = 255;
+    while (l + 1 < r)
+    {
+        uc m = (l + r) / 2;
+        if (count[m] - 1 >= value)
         {
             r = m;
         }
-        else 
+        else
         {
             l = m;
         }
@@ -120,16 +122,18 @@ void find_min(const long long value) {
     MIN = r;
 }
 
-void find_max(const long long value) {
-    int l = 0; 
-    int r = 256;
-    while (l + 1 < r) {
-        int m = (l + r) / 2;
-        if (count[m] + 1 >= value) 
+void find_max(const long long value)
+{
+    uc l = 0;
+    uc r = 255;
+    while (l + 1 < r)
+    {
+        uc m = (l + r) / 2;
+        if (count[m] + 1 >= value)
         {
             r = m;
         }
-        else 
+        else
         {
             l = m;
         }
@@ -137,23 +141,18 @@ void find_max(const long long value) {
     MAX = r;
 }
 
-int main(int argc, char* argv[])
-{   
+int main(int argc, char *argv[])
+{
     int threads = atoi(argv[1]);
     float MISS_COEF = atof(argv[4]);
-    // int chunk_size = 7;
-
     omp_set_num_threads(threads);
-    // omp_set_schedule(omp_sched_static, chunk_size);
 
     bool min_found = false, max_found = false;
-    
-    ofstream tester("test.txt", ios::app);
     ofstream output(argv[3], ios::binary);
 
     init(argv[2]);
 
-    Timer algo = Timer("");
+    Timer algo = Timer(threads);
 
     if (data[0] == 'P')
     {
@@ -169,47 +168,32 @@ int main(int argc, char* argv[])
             {
                 pixels = height * width * 3;
             }
-            
+
             long long cnt = 0;
             long long left = pixels * MISS_COEF;
             long long right = pixels * (1.0 - MISS_COEF);
-            
-            // cout << left << " " << right << "\n";
-            
-            for (long long t = i; t < pixels + i - 1; t += 1)
+
+            for (long long t = i; t < pixels + i - 1; t++)
             {
                 count[data[t]] += 1;
             }
 
-            for(int j = 1; j < 256; j++) {
+            for (int j = 1; j < 256; j++)
+            {
                 count[j] += count[j - 1];
             }
-            #pragma omp parallel 
+
+#pragma omp parallel sections
             {
-                find_min(left);
-                find_max(right);
+#pragma omp section
+                {
+                    find_min(left);
+                }
+#pragma omp section
+                {
+                    find_max(right);
+                }
             }
-            
-            // for (int j = 0; j < 256; j++)
-            // {
-
-            //     cnt += count[j];
-
-            //     #pragma omp parallel
-            //     {
-            //         if ((!min_found) && (cnt - 1 >= left))
-            //         {
-            //             min_found = true;
-            //             MIN = j;
-            //         }
-            //         if ((!max_found) && (cnt + 1 >= right))
-            //         {
-
-            //             max_found = true;
-            //             MAX = j;
-            //         }
-            //     }
-            // }
             // cout << (int)MIN << " " << (int)MAX << "\n";
 
             if (MAX == MIN)
@@ -223,7 +207,7 @@ int main(int argc, char* argv[])
             }
             precalc();
 
-        #pragma omp parallel for
+#pragma omp parallel for
             for (int t = i; t < pixels + i - 1; t++)
             {
                 data[t] = new_color[data[t]];
@@ -235,16 +219,12 @@ int main(int argc, char* argv[])
         }
     }
     else
+    {
         wrong();
-
-    // algo.end();
-    // tester << "Threads: " << threads << "   Time: " << algo.end() << " ms" << "\n";
-    
-    tester << algo.end() << " ";
+    }
+    algo.end();
     output.write((char *)&data[0], data.size());
-
     output.close();
-    tester.close();
 
     return 0;
 }

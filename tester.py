@@ -35,7 +35,7 @@ def compile(omp=True):
 # file.close()
 
 compile(omp=True)
-test1 = Test(10, "tests//test100mb.ppm", "output.ppm", 0.1)
+test1 = Test(1, "tests//test100mb.ppm", "output.ppm", 0.1)
 
 for i in range(20):
     test1.run()
