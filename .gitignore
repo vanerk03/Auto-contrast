@@ -1,8 +1,0 @@
-.vscode
-output.pgm
-output.ppm
-test.txt
-test.cpp
-tests/test600mb.pnm
-tests/test100mb.ppm
-.gitignore
